@@ -2,24 +2,32 @@ class User {
   final int id;
   final String name;
   final String email;
-  final String phone;
+  final String? phone; // Nullable sesuai skema database
   final String role;
+  final double depositBalance; // Menambahkan deposit_balance
+  final DateTime? emailVerifiedAt; // Menambahkan email_verified_at (nullable)
 
   User({
     required this.id,
     required this.name,
     required this.email,
-    required this.phone,
+    this.phone,
     required this.role,
+    required this.depositBalance,
+    this.emailVerifiedAt,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['id'],
-      name: json['name'],
-      email: json['email'],
-      phone: json['phone'] ?? '',
-      role: json['role'],
+      id: json['id'] as int,
+      name: json['name'] as String,
+      email: json['email'] as String,
+      phone: json['phone'] as String?,
+      role: json['role'] as String,
+      depositBalance: double.parse((json['deposit_balance'] ?? '0').toString()),
+      emailVerifiedAt: json['email_verified_at'] != null
+          ? DateTime.parse(json['email_verified_at'])
+          : null,
     );
   }
 
@@ -30,6 +38,8 @@ class User {
       'email': email,
       'phone': phone,
       'role': role,
+      'deposit_balance': depositBalance,
+      'email_verified_at': emailVerifiedAt?.toIso8601String(),
     };
   }
 }

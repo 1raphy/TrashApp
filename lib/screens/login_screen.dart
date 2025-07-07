@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:trasav/models/user.dart';
+import 'package:trasav/services/api_service.dart';
 import 'register_screen.dart';
 import 'customer_home_screen.dart';
 import 'operator_home_screen.dart';
-import '../services/api_service.dart';
-import 'package:trasav/models/user.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -82,10 +82,11 @@ class _LoginScreenState extends State<LoginScreen>
         _errorMessage = null;
       });
       try {
-        final user = await ApiService.login(
+        final result = await ApiService.login(
           _emailController.text,
           _passwordController.text,
         );
+        final user = result['user'] as User;
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -105,6 +106,7 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         );
 
+        // Navigasi berdasarkan role pengguna
         if (user.role == 'nasabah') {
           Navigator.pushReplacement(
             context,
@@ -119,10 +121,12 @@ class _LoginScreenState extends State<LoginScreen>
               builder: (context) => OperatorHomeScreen(user: user),
             ),
           );
+        } else {
+          throw Exception('Role pengguna tidak dikenali');
         }
       } catch (e) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = e.toString().replaceFirst('Exception: ', '');
         });
       } finally {
         setState(() {
@@ -517,15 +521,7 @@ class _LoginScreenState extends State<LoginScreen>
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: TextStyle(color: Colors.grey[400]),
-            prefixIcon: Container(
-              margin: EdgeInsets.all(8),
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: primaryGreen.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(prefixIcon, color: primaryGreen, size: 20),
-            ),
+            prefixIcon: Icon(prefixIcon, color: primaryGreen, size: 20),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(color: Colors.grey[300]!),
@@ -568,15 +564,7 @@ class _LoginScreenState extends State<LoginScreen>
           decoration: InputDecoration(
             hintText: 'Masukkan password Anda',
             hintStyle: TextStyle(color: Colors.grey[400]),
-            prefixIcon: Container(
-              margin: EdgeInsets.all(8),
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: primaryGreen.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(Icons.lock_outline, color: primaryGreen, size: 20),
-            ),
+            prefixIcon: Icon(Icons.lock_outline, color: primaryGreen, size: 20),
             suffixIcon: IconButton(
               icon: Icon(
                 _isPasswordVisible
@@ -609,6 +597,9 @@ class _LoginScreenState extends State<LoginScreen>
           validator: (value) {
             if (value == null || value.isEmpty) {
               return 'Password tidak boleh kosong';
+            }
+            if (value.length < 8) {
+              return 'Password minimal 8 karakter';
             }
             return null;
           },
