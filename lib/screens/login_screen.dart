@@ -3,7 +3,7 @@ import 'register_screen.dart';
 import 'customer_home_screen.dart';
 import 'operator/operator_home_screen.dart';
 import '../services/api_service.dart';
-import 'package:trashapp/models/user.dart';
+import 'package:trasav/models/user.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
