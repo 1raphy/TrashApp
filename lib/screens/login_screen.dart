@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:trasav/models/user.dart';
+import 'package:trasav/screens/operator/operator_home_screen.dart';
+import 'package:trasav/screens/operator_home_screen.dart';
 import 'package:trasav/services/api_service.dart';
 import 'register_screen.dart';
 import 'customer_home_screen.dart';
-import 'operator_home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -117,9 +118,7 @@ class _LoginScreenState extends State<LoginScreen>
         } else if (user.role == 'operator') {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(
-              builder: (context) => OperatorHomeScreen(user: user),
-            ),
+            MaterialPageRoute(builder: (context) => OperatorScreen(user: user)),
           );
         } else {
           throw Exception('Role pengguna tidak dikenali');

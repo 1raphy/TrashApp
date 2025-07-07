@@ -2,10 +2,10 @@ class User {
   final int id;
   final String name;
   final String email;
-  final String? phone; // Nullable sesuai skema database
+  final String? phone;
   final String role;
-  final double depositBalance; // Menambahkan deposit_balance
-  final DateTime? emailVerifiedAt; // Menambahkan email_verified_at (nullable)
+  final double depositBalance;
+  final DateTime? emailVerifiedAt;
 
   User({
     required this.id,
