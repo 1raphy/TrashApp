@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../models/user.dart';
+import 'package:trasav/models/setoran_sampah.dart';
+import 'package:trasav/models/user.dart';
+import 'package:trasav/services/setoran_sampah_service.dart';
 
 class RiwayatSetoranPage extends StatefulWidget {
   final User user;
@@ -11,74 +13,56 @@ class RiwayatSetoranPage extends StatefulWidget {
 }
 
 class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
+  final SetoranSampahService _service = SetoranSampahService();
   String selectedFilter = 'Semua';
   List<String> filterOptions = ['Semua', 'Pending', 'Diverifikasi', 'Ditolak'];
+  List<SetoranSampah> setoranData = [];
+  bool isLoading = false;
+  String? errorMessage;
 
-  // Data dummy untuk riwayat setoran
-  List<Map<String, dynamic>> setoranData = [
-    {
-      'id': 'ST001',
-      'nasabah': 'Budi Santoso',
-      'kategori': 'Plastik',
-      'berat': 2.5,
-      'harga': 7500,
-      'tanggal': '2024-01-15',
-      'status': 'Diverifikasi',
-      'foto': 'https://via.placeholder.com/50',
-    },
-    {
-      'id': 'ST002',
-      'nasabah': 'Siti Aminah',
-      'kategori': 'Kardus',
-      'berat': 5.0,
-      'harga': 15000,
-      'tanggal': '2024-01-15',
-      'status': 'Pending',
-      'foto': 'https://via.placeholder.com/50',
-    },
-    {
-      'id': 'ST003',
-      'nasabah': 'Ahmad Wijaya',
-      'kategori': 'Botol Kaca',
-      'berat': 3.2,
-      'harga': 9600,
-      'tanggal': '2024-01-14',
-      'status': 'Diverifikasi',
-      'foto': 'https://via.placeholder.com/50',
-    },
-    {
-      'id': 'ST004',
-      'nasabah': 'Rina Susanti',
-      'kategori': 'Kertas',
-      'berat': 1.8,
-      'harga': 3600,
-      'tanggal': '2024-01-14',
-      'status': 'Ditolak',
-      'foto': 'https://via.placeholder.com/50',
-    },
-    {
-      'id': 'ST005',
-      'nasabah': 'Joko Priyono',
-      'kategori': 'Aluminium',
-      'berat': 0.8,
-      'harga': 4000,
-      'tanggal': '2024-01-13',
-      'status': 'Pending',
-      'foto': 'https://via.placeholder.com/50',
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _fetchSetoranData();
+  }
+
+  Future<void> _fetchSetoranData() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+    try {
+      final setorans = await _service.getSetoranSampah();
+      setState(() {
+        setoranData = setorans;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = 'Gagal memuat data setoran: $e';
+        isLoading = false;
+      });
+      print('Error fetching setoran data: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: Column(
-        children: [
-          _buildHeader(),
-          _buildFilterSection(),
-          Expanded(child: _buildSetoranList()),
-        ],
-      ),
+      body: isLoading
+          ? Center(child: CircularProgressIndicator())
+          : errorMessage != null
+          ? Center(
+              child: Text(errorMessage!, style: TextStyle(color: Colors.red)),
+            )
+          : Column(
+              children: [
+                _buildHeader(),
+                _buildFilterSection(),
+                Expanded(child: _buildSetoranList()),
+              ],
+            ),
       floatingActionButton: _buildFloatingActionButton(),
     );
   }
@@ -113,21 +97,14 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
               ),
               Text(
                 'Kelola dan verifikasi setoran sampah',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
               ),
             ],
           ),
           Spacer(),
           IconButton(
             icon: Icon(Icons.refresh, color: Colors.green[600]),
-            onPressed: () {
-              setState(() {
-                // Refresh data
-              });
-            },
+            onPressed: _fetchSetoranData,
           ),
         ],
       ),
@@ -167,16 +144,18 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
                       color: isSelected ? Colors.green[600] : Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color:
-                            isSelected ? Colors.green[600]! : Colors.grey[300]!,
+                        color: isSelected
+                            ? Colors.green[600]!
+                            : Colors.grey[300]!,
                       ),
                     ),
                     child: Text(
                       filter,
                       style: TextStyle(
                         color: isSelected ? Colors.white : Colors.grey[600],
-                        fontWeight:
-                            isSelected ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                       ),
                     ),
                   ),
@@ -190,10 +169,20 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
   }
 
   Widget _buildSetoranList() {
-    List<Map<String, dynamic>> filteredData = setoranData.where((setoran) {
+    List<SetoranSampah> filteredData = setoranData.where((setoran) {
       if (selectedFilter == 'Semua') return true;
-      return setoran['status'] == selectedFilter;
+      String displayStatus = _getDisplayStatus(setoran.status);
+      return displayStatus.toLowerCase() == selectedFilter.toLowerCase();
     }).toList();
+
+    if (filteredData.isEmpty) {
+      return Center(
+        child: Text(
+          'Tidak ada data setoran',
+          style: TextStyle(color: Colors.grey[600]),
+        ),
+      );
+    }
 
     return ListView.builder(
       padding: EdgeInsets.symmetric(horizontal: 16),
@@ -205,9 +194,10 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
     );
   }
 
-  Widget _buildSetoranCard(Map<String, dynamic> setoran) {
-    Color statusColor = _getStatusColor(setoran['status']);
-    IconData statusIcon = _getStatusIcon(setoran['status']);
+  Widget _buildSetoranCard(SetoranSampah setoran) {
+    String displayStatus = _getDisplayStatus(setoran.status);
+    Color statusColor = _getStatusColor(displayStatus);
+    IconData statusIcon = _getStatusIcon(displayStatus);
 
     return Card(
       margin: EdgeInsets.only(bottom: 12),
@@ -240,7 +230,7 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
                         Row(
                           children: [
                             Text(
-                              setoran['id'],
+                              'ST${setoran.id.toString().padLeft(3, '0')}',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey[600],
@@ -250,7 +240,9 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
                             Spacer(),
                             Container(
                               padding: EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: statusColor.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(12),
@@ -258,11 +250,14 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(statusIcon,
-                                      size: 12, color: statusColor),
+                                  Icon(
+                                    statusIcon,
+                                    size: 12,
+                                    color: statusColor,
+                                  ),
                                   SizedBox(width: 4),
                                   Text(
-                                    setoran['status'],
+                                    displayStatus,
                                     style: TextStyle(
                                       fontSize: 10,
                                       color: statusColor,
@@ -276,7 +271,7 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
                         ),
                         SizedBox(height: 4),
                         Text(
-                          setoran['nasabah'],
+                          setoran.user?.name ?? 'Unknown',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -284,7 +279,7 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
                           ),
                         ),
                         Text(
-                          setoran['kategori'],
+                          setoran.jenisSampah?.namaSampah ?? 'Unknown',
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey[600],
@@ -301,15 +296,18 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
                   Icon(Icons.scale, size: 16, color: Colors.grey[600]),
                   SizedBox(width: 4),
                   Text(
-                    '${setoran['berat']} kg',
+                    '${setoran.beratKg.toStringAsFixed(1)} kg',
                     style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                   ),
                   SizedBox(width: 16),
-                  Icon(Icons.monetization_on,
-                      size: 16, color: Colors.green[600]),
+                  Icon(
+                    Icons.monetization_on,
+                    size: 16,
+                    color: Colors.green[600],
+                  ),
                   SizedBox(width: 4),
                   Text(
-                    'Rp ${setoran['harga'].toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
+                    'Rp ${setoran.totalHarga.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.green[600],
@@ -318,18 +316,19 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
                   ),
                   Spacer(),
                   Text(
-                    setoran['tanggal'],
+                    setoran.createdAt.toString().substring(0, 10),
                     style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                   ),
                 ],
               ),
-              if (setoran['status'] == 'Pending') ...[
+              if (setoran.status.toLowerCase() == 'pending' &&
+                  widget.user.role == 'operator') ...[
                 SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () => _verifySetoran(setoran['id'], true),
+                        onPressed: () => _verifySetoran(setoran.id, true),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green[600],
                           foregroundColor: Colors.white,
@@ -343,7 +342,7 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
                     SizedBox(width: 8),
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: () => _verifySetoran(setoran['id'], false),
+                        onPressed: () => _verifySetoran(setoran.id, false),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.red[600],
                           side: BorderSide(color: Colors.red[600]!),
@@ -364,13 +363,26 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
     );
   }
 
+  String _getDisplayStatus(String status) {
+    switch (status.toLowerCase()) {
+      case 'pending':
+        return 'Pending';
+      case 'disetujui':
+        return 'Diverifikasi';
+      case 'ditolak':
+        return 'Ditolak';
+      default:
+        return 'Unknown';
+    }
+  }
+
   Color _getStatusColor(String status) {
-    switch (status) {
-      case 'Pending':
+    switch (status.toLowerCase()) {
+      case 'pending':
         return Colors.orange[600]!;
-      case 'Diverifikasi':
+      case 'diverifikasi':
         return Colors.green[600]!;
-      case 'Ditolak':
+      case 'ditolak':
         return Colors.red[600]!;
       default:
         return Colors.grey[600]!;
@@ -378,19 +390,20 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
   }
 
   IconData _getStatusIcon(String status) {
-    switch (status) {
-      case 'Pending':
+    switch (status.toLowerCase()) {
+      case 'pending':
         return Icons.hourglass_empty;
-      case 'Diverifikasi':
+      case 'diverifikasi':
         return Icons.check_circle;
-      case 'Ditolak':
+      case 'ditolak':
         return Icons.cancel;
       default:
         return Icons.help;
     }
   }
 
-  void _showSetoranDetail(Map<String, dynamic> setoran) {
+  void _showSetoranDetail(SetoranSampah setoran) {
+    String displayStatus = _getDisplayStatus(setoran.status);
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -419,23 +432,46 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
                 ],
               ),
               SizedBox(height: 16),
-              _buildDetailRow('ID Setoran', setoran['id']),
-              _buildDetailRow('Nasabah', setoran['nasabah']),
-              _buildDetailRow('Kategori', setoran['kategori']),
-              _buildDetailRow('Berat', '${setoran['berat']} kg'),
-              _buildDetailRow('Harga',
-                  'Rp ${setoran['harga'].toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}'),
-              _buildDetailRow('Tanggal', setoran['tanggal']),
-              _buildDetailRow('Status', setoran['status']),
-              SizedBox(height: 16),
-              if (setoran['status'] == 'Pending')
+              _buildDetailRow(
+                'ID Setoran',
+                'ST${setoran.id.toString().padLeft(3, '0')}',
+              ),
+              _buildDetailRow('Nasabah', setoran.user?.name ?? 'Unknown'),
+              _buildDetailRow(
+                'Kategori',
+                setoran.jenisSampah?.namaSampah ?? 'Unknown',
+              ),
+              _buildDetailRow(
+                'Berat',
+                '${setoran.beratKg.toStringAsFixed(1)} kg',
+              ),
+              _buildDetailRow(
+                'Harga',
+                'Rp ${setoran.totalHarga.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}',
+              ),
+              _buildDetailRow(
+                'Tanggal',
+                setoran.createdAt.toString().substring(0, 10),
+              ),
+              _buildDetailRow('Status', displayStatus),
+              _buildDetailRow('Metode Penjemputan', setoran.metodePenjemputan),
+              if (setoran.alamatPenjemputan != null)
+                _buildDetailRow(
+                  'Alamat Penjemputan',
+                  setoran.alamatPenjemputan!,
+                ),
+              if (setoran.catatanTambahan != null)
+                _buildDetailRow('Catatan Tambahan', setoran.catatanTambahan!),
+              if (setoran.status.toLowerCase() == 'pending' &&
+                  widget.user.role == 'operator') ...[
+                SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () {
                           Navigator.pop(context);
-                          _verifySetoran(setoran['id'], true);
+                          _verifySetoran(setoran.id, true);
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green[600],
@@ -449,7 +485,7 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
                       child: OutlinedButton(
                         onPressed: () {
                           Navigator.pop(context);
-                          _verifySetoran(setoran['id'], false);
+                          _verifySetoran(setoran.id, false);
                         },
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.red[600],
@@ -460,6 +496,7 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
                     ),
                   ],
                 ),
+              ],
             ],
           ),
         ),
@@ -474,7 +511,7 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 80,
+            width: 120,
             child: Text(
               label,
               style: TextStyle(
@@ -484,10 +521,7 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
               ),
             ),
           ),
-          Text(
-            ': ',
-            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-          ),
+          Text(': ', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
           Expanded(
             child: Text(
               value,
@@ -503,30 +537,35 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
     );
   }
 
-  void _verifySetoran(String id, bool approve) {
-    setState(() {
-      int index = setoranData.indexWhere((setoran) => setoran['id'] == id);
-      if (index != -1) {
-        setoranData[index]['status'] = approve ? 'Diverifikasi' : 'Ditolak';
-      }
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content:
-            Text(approve ? 'Setoran berhasil diverifikasi' : 'Setoran ditolak'),
-        backgroundColor: approve ? Colors.green[600] : Colors.red[600],
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+  Future<void> _verifySetoran(int id, bool approve) async {
+    try {
+      final status = approve ? 'disetujui' : 'ditolak';
+      await _service.updateStatusSetoranSampah(id, status);
+      await _fetchSetoranData();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            approve ? 'Setoran berhasil diverifikasi' : 'Setoran ditolak',
+          ),
+          backgroundColor: approve ? Colors.green[600] : Colors.red[600],
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal memperbarui status: $e'),
+          backgroundColor: Colors.red[600],
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Widget _buildFloatingActionButton() {
+    if (widget.user.role != 'operator') return SizedBox.shrink();
     return FloatingActionButton.extended(
-      onPressed: () {
-        // Implementasi untuk menambah setoran manual
-        _showAddSetoranDialog();
-      },
+      onPressed: _showAddSetoranDialog,
       backgroundColor: Colors.green[600],
       label: Text('Tambah Setoran', style: TextStyle(color: Colors.white)),
       icon: Icon(Icons.add, color: Colors.white),
@@ -539,7 +578,8 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
       builder: (context) => AlertDialog(
         title: Text('Tambah Setoran Manual'),
         content: Text(
-            'Fitur untuk menambah setoran manual akan diimplementasikan di sini.'),
+          'Fitur untuk menambah setoran manual akan diimplementasikan di sini.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

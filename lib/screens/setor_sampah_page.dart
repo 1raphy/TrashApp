@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:trasav/services/setoran_sampah_service.dart';
-import 'package:trasav/models/setoran_sampah.dart';
+import 'package:trasav/models/jenis_sampah.dart';
 import '../models/user.dart';
 
 class SetorSampahPage extends StatefulWidget {

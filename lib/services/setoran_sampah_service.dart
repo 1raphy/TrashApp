@@ -2,13 +2,16 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:trasav/models/setoran_sampah.dart';
+import 'package:trasav/models/jenis_sampah.dart';
 
 class SetoranSampahService {
   static const String _baseUrl = 'http://10.0.2.2:8000/api';
 
   Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('auth_token');
+    final token = prefs.getString('auth_token');
+    print('Auth Token: $token');
+    return token;
   }
 
   Future<Map<String, String>> _getHeaders() async {
@@ -114,19 +117,14 @@ class SetoranSampahService {
     }
   }
 
-  Future<List<PenarikanSaldo>> getPenarikanSaldo({required int userId}) async {
+  Future<List<PenarikanSaldo>> getPenarikanSaldo() async {
     final headers = await _getHeaders();
-    final body = jsonEncode({
-      'user_id': userId, // Kirim user_id untuk filter data
-      // 'jumlah': 0, // Jika backend memerlukan jumlah, uncomment dan sesuaikan
-    });
-
-    final response = await http.post(
+    final response = await http.get(
       Uri.parse('$_baseUrl/penarikan-saldo'),
       headers: headers,
-      body: body,
     );
 
+    print('PenarikanSaldo Status Code: ${response.statusCode}');
     print('PenarikanSaldo Response: ${response.body}');
 
     if (response.statusCode == 200) {

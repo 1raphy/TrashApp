@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:trasav/services/setoran_sampah_service.dart';
-import 'package:trasav/models/setoran_sampah.dart';
+// import 'package:trasav/models/setoran_sampah.dart';
+import 'package:trasav/models/jenis_sampah.dart';
 import '../models/user.dart';
 
 class RiwayatPage extends StatefulWidget {
@@ -54,9 +55,7 @@ class _RiwayatPageState extends State<RiwayatPage>
     });
     try {
       final setoran = await _service.getSetoranSampah();
-      final penarikan = await _service.getPenarikanSaldo(
-        userId: widget.user.id,
-      ); // Tambahkan userId
+      final penarikan = await _service.getPenarikanSaldo(); // Hapus userId
       final jenisSampah = await _service.getJenisSampah();
       setState(() {
         jenisSampahList = jenisSampah;
