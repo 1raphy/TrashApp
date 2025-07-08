@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:trasav/services/setoran_sampah_service.dart';
+import 'package:trasav/models/setoran_sampah.dart';
 import '../models/user.dart';
 
 class RiwayatPage extends StatefulWidget {
@@ -13,77 +16,29 @@ class RiwayatPage extends StatefulWidget {
 class _RiwayatPageState extends State<RiwayatPage>
     with TickerProviderStateMixin {
   late TabController _tabController;
+  final _service = SetoranSampahService();
   String selectedFilter = 'Semua';
+  List<dynamic> transactions = [];
+  List<JenisSampah> jenisSampahList = [];
+  bool isLoading = false;
+  String? errorMessage;
 
-  final List<String> filters = ['Semua', 'Pending', 'Approved', 'Rejected'];
+  final List<String> filters = ['Semua', 'Pending', 'Disetujui', 'Ditolak'];
 
-  final List<Map<String, dynamic>> transactions = [
-    {
-      'id': 'TRX001',
-      'type': 'Setoran',
-      'wasteType': 'Plastik',
-      'weight': '2.5 kg',
-      'amount': 6250,
-      'status': 'Approved',
-      'date': '2024-01-15',
-      'time': '14:30',
-      'icon': Icons.recycling,
-      'color': Colors.green,
-    },
-    {
-      'id': 'TRX002',
-      'type': 'Penarikan',
-      'wasteType': '-',
-      'weight': '-',
-      'amount': -100000,
-      'status': 'Approved',
-      'date': '2024-01-14',
-      'time': '10:15',
-      'icon': Icons.money,
-      'color': Colors.blue,
-    },
-    {
-      'id': 'TRX003',
-      'type': 'Setoran',
-      'wasteType': 'Kertas',
-      'weight': '3.0 kg',
-      'amount': 4500,
-      'status': 'Pending',
-      'date': '2024-01-13',
-      'time': '16:20',
-      'icon': Icons.description,
-      'color': Colors.orange,
-    },
-    {
-      'id': 'TRX004',
-      'type': 'Setoran',
-      'wasteType': 'Logam',
-      'weight': '1.2 kg',
-      'amount': 6000,
-      'status': 'Approved',
-      'date': '2024-01-12',
-      'time': '09:45',
-      'icon': Icons.build,
-      'color': Colors.grey,
-    },
-    {
-      'id': 'TRX005',
-      'type': 'Setoran',
-      'wasteType': 'Kaca',
-      'weight': '0.8 kg',
-      'amount': 2400,
-      'status': 'Rejected',
-      'date': '2024-01-11',
-      'time': '11:30',
-      'icon': Icons.kitchen,
-      'color': Colors.amber,
-    },
-  ];
+  final Map<String, Map<String, dynamic>> jenisSampahAttributes = {
+    'Plastik': {'icon': Icons.recycling, 'color': Colors.green},
+    'Kertas': {'icon': Icons.description, 'color': Colors.blue},
+    'Logam': {'icon': Icons.build, 'color': Colors.grey},
+    'Kaca': {'icon': Icons.wine_bar, 'color': Colors.amber},
+    'Elektronik': {'icon': Icons.phone_android, 'color': Colors.purple},
+    'Organik': {'icon': Icons.eco, 'color': Colors.orange},
+  };
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _fetchData();
   }
 
   @override
@@ -92,30 +47,75 @@ class _RiwayatPageState extends State<RiwayatPage>
     super.dispose();
   }
 
-  List<Map<String, dynamic>> get filteredTransactions {
+  Future<void> _fetchData() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+    try {
+      final setoran = await _service.getSetoranSampah();
+      final penarikan = await _service.getPenarikanSaldo(
+        userId: widget.user.id,
+      ); // Tambahkan userId
+      final jenisSampah = await _service.getJenisSampah();
+      setState(() {
+        jenisSampahList = jenisSampah;
+        transactions = [
+          ...setoran.map((s) => {'type': 'Setoran', 'data': s}),
+          ...penarikan.map((p) => {'type': 'Penarikan', 'data': p}),
+        ]..sort((a, b) => b['data'].createdAt.compareTo(a['data'].createdAt));
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = 'Gagal memuat data: $e';
+        isLoading = false;
+      });
+      print('Error fetching data: $e');
+    }
+  }
+
+  List<dynamic> get filteredTransactions {
     if (selectedFilter == 'Semua') {
       return transactions;
     }
-    return transactions.where((tx) => tx['status'] == selectedFilter).toList();
+    return transactions.where((tx) {
+      if (tx['type'] == 'Penarikan') {
+        return false;
+      }
+      final status = tx['data'].status?.toString().toLowerCase() ?? '';
+      print(
+        'Filtering tx: ${tx['data'].id}, status: $status, filter: $selectedFilter',
+      );
+      return status == selectedFilter.toLowerCase();
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _buildHeader(),
-        SizedBox(height: 16),
-        _buildStatsRow(),
-        SizedBox(height: 16),
-        _buildFilterRow(),
-        SizedBox(height: 16),
-        Expanded(
-          child: TabBarView(
-            controller: _tabController,
-            children: [_buildTransactionList(), _buildMonthlyReport()],
-          ),
-        ),
-      ],
+    return Scaffold(
+      body: isLoading
+          ? Center(child: CircularProgressIndicator())
+          : errorMessage != null
+          ? Center(
+              child: Text(errorMessage!, style: TextStyle(color: Colors.red)),
+            )
+          : Column(
+              children: [
+                _buildHeader(),
+                SizedBox(height: 16),
+                _buildStatsRow(),
+                SizedBox(height: 16),
+                _buildFilterRow(),
+                SizedBox(height: 16),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [_buildTransactionList(), _buildMonthlyReport()],
+                  ),
+                ),
+              ],
+            ),
     );
   }
 
@@ -125,14 +125,14 @@ class _RiwayatPageState extends State<RiwayatPage>
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.blue[400]!, Colors.blue[600]!],
+          colors: [Colors.green[400]!, Colors.green[600]!],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.3),
+            color: Colors.green.withOpacity(0.3),
             blurRadius: 10,
             offset: Offset(0, 5),
           ),
@@ -178,7 +178,7 @@ class _RiwayatPageState extends State<RiwayatPage>
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(15),
               ),
-              labelColor: Colors.blue[600],
+              labelColor: Colors.green[600],
               unselectedLabelColor: Colors.white,
               tabs: [
                 Tab(text: 'Transaksi'),
@@ -194,14 +194,23 @@ class _RiwayatPageState extends State<RiwayatPage>
   Widget _buildStatsRow() {
     int totalTransactions = transactions.length;
     int pendingCount = transactions
-        .where((tx) => tx['status'] == 'Pending')
+        .where(
+          (tx) =>
+              tx['type'] == 'Setoran' &&
+              (tx['data'].status?.toString().toLowerCase() ?? '') == 'pending',
+        )
         .length;
     int approvedCount = transactions
-        .where((tx) => tx['status'] == 'Approved')
+        .where(
+          (tx) =>
+              tx['type'] == 'Setoran' &&
+              (tx['data'].status?.toString().toLowerCase() ?? '') ==
+                  'disetujui',
+        )
         .length;
     double totalIncome = transactions
-        .where((tx) => tx['amount'] > 0)
-        .fold(0.0, (sum, tx) => sum + tx['amount']);
+        .where((tx) => tx['type'] == 'Setoran')
+        .fold(0.0, (sum, tx) => sum + (tx['data'].totalHarga ?? 0.0));
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 16),
@@ -212,7 +221,7 @@ class _RiwayatPageState extends State<RiwayatPage>
               totalTransactions.toString(),
               'Total Transaksi',
               Icons.receipt_long,
-              Colors.purple,
+              Colors.green,
             ),
           ),
           SizedBox(width: 8),
@@ -228,7 +237,7 @@ class _RiwayatPageState extends State<RiwayatPage>
           Expanded(
             child: _buildStatCard(
               approvedCount.toString(),
-              'Approved',
+              'Disetujui',
               Icons.check_circle,
               Colors.green,
             ),
@@ -239,7 +248,7 @@ class _RiwayatPageState extends State<RiwayatPage>
               'Rp ${(totalIncome / 1000).toStringAsFixed(0)}K',
               'Total Pendapatan',
               Icons.monetization_on,
-              Colors.blue,
+              Colors.green,
             ),
           ),
         ],
@@ -261,7 +270,7 @@ class _RiwayatPageState extends State<RiwayatPage>
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.1),
-            blurRadius: 5,
+            blurRadius: 10,
             offset: Offset(0, 2),
           ),
         ],
@@ -309,10 +318,10 @@ class _RiwayatPageState extends State<RiwayatPage>
               margin: EdgeInsets.only(right: 8),
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: isSelected ? Colors.blue[600] : Colors.white,
+                color: isSelected ? Colors.green[600] : Colors.white,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isSelected ? Colors.blue[600]! : Colors.grey[300]!,
+                  color: isSelected ? Colors.green[600]! : Colors.grey[300]!,
                 ),
               ),
               child: Text(
@@ -331,6 +340,14 @@ class _RiwayatPageState extends State<RiwayatPage>
   }
 
   Widget _buildTransactionList() {
+    if (filteredTransactions.isEmpty) {
+      return Center(
+        child: Text(
+          'Tidak ada transaksi',
+          style: TextStyle(color: Colors.grey[600]),
+        ),
+      );
+    }
     return ListView.builder(
       padding: EdgeInsets.all(16),
       itemCount: filteredTransactions.length,
@@ -342,19 +359,54 @@ class _RiwayatPageState extends State<RiwayatPage>
   }
 
   Widget _buildTransactionCard(Map<String, dynamic> transaction) {
+    final isSetoran = transaction['type'] == 'Setoran';
+    final data = transaction['data'];
+    print(
+      'Processing transaction: id=${data.id}, type=${transaction['type']}, jenisSampahId=${data.jenisSampahId}',
+    );
+
+    JenisSampah? jenisSampah;
+    try {
+      final jenisSampahId = (data.jenisSampahId is int)
+          ? data.jenisSampahId
+          : int.tryParse(data.jenisSampahId?.toString() ?? '0') ?? 0;
+      jenisSampah = isSetoran
+          ? jenisSampahList.firstWhere(
+              (s) => s.id == jenisSampahId,
+              orElse: () =>
+                  JenisSampah(id: 0, namaSampah: 'Unknown', hargaPerKg: 0),
+            )
+          : null;
+    } catch (e) {
+      print(
+        'Error finding JenisSampah: $e, jenisSampahId: ${data.jenisSampahId}',
+      );
+      jenisSampah = JenisSampah(id: 0, namaSampah: 'Unknown', hargaPerKg: 0);
+    }
+
     Color statusColor;
-    switch (transaction['status']) {
-      case 'Approved':
-        statusColor = Colors.green;
-        break;
-      case 'Pending':
-        statusColor = Colors.orange;
-        break;
-      case 'Rejected':
-        statusColor = Colors.red;
-        break;
-      default:
-        statusColor = Colors.grey;
+    String statusText;
+    if (isSetoran) {
+      switch (data.status?.toString().toLowerCase() ?? '') {
+        case 'disetujui':
+          statusColor = Colors.green;
+          statusText = 'Disetujui';
+          break;
+        case 'pending':
+          statusColor = Colors.orange;
+          statusText = 'Pending';
+          break;
+        case 'ditolak':
+          statusColor = Colors.red;
+          statusText = 'Ditolak';
+          break;
+        default:
+          statusColor = Colors.grey;
+          statusText = data.status?.toString() ?? 'Unknown';
+      }
+    } else {
+      statusColor = Colors.blue;
+      statusText = 'Selesai';
     }
 
     return Container(
@@ -365,7 +417,7 @@ class _RiwayatPageState extends State<RiwayatPage>
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.1),
-            blurRadius: 5,
+            blurRadius: 10,
             offset: Offset(0, 2),
           ),
         ],
@@ -375,12 +427,24 @@ class _RiwayatPageState extends State<RiwayatPage>
         leading: Container(
           padding: EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: transaction['color'].withOpacity(0.1),
+            color:
+                (isSetoran
+                        ? (jenisSampahAttributes[jenisSampah!
+                                  .namaSampah]?['color'] ??
+                              Colors.green)
+                        : Colors.blue)
+                    .withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(
-            transaction['icon'],
-            color: transaction['color'],
+            isSetoran
+                ? (jenisSampahAttributes[jenisSampah!.namaSampah]?['icon'] ??
+                      Icons.recycling)
+                : Icons.monetization_on,
+            color: isSetoran
+                ? (jenisSampahAttributes[jenisSampah!.namaSampah]?['color'] ??
+                      Colors.green)
+                : Colors.blue,
             size: 24,
           ),
         ),
@@ -398,7 +462,7 @@ class _RiwayatPageState extends State<RiwayatPage>
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                transaction['status'],
+                statusText,
                 style: TextStyle(
                   color: statusColor,
                   fontSize: 10,
@@ -412,9 +476,9 @@ class _RiwayatPageState extends State<RiwayatPage>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(height: 8),
-            if (transaction['wasteType'] != '-')
+            if (isSetoran)
               Text(
-                '${transaction['wasteType']} - ${transaction['weight']}',
+                '${jenisSampah!.namaSampah} - ${data.beratKg.toStringAsFixed(1)} kg',
                 style: TextStyle(color: Colors.grey[600]),
               ),
             SizedBox(height: 4),
@@ -422,15 +486,15 @@ class _RiwayatPageState extends State<RiwayatPage>
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '${transaction['date']} ${transaction['time']}',
+                  DateFormat('yyyy-MM-dd HH:mm').format(data.createdAt),
                   style: TextStyle(color: Colors.grey[500], fontSize: 12),
                 ),
                 Text(
-                  '${transaction['amount'] > 0 ? '+' : ''}Rp ${transaction['amount'].abs().toString()}',
+                  isSetoran
+                      ? '+Rp ${data.totalHarga.toStringAsFixed(0)}'
+                      : '-Rp ${data.jumlah.toStringAsFixed(0)}',
                   style: TextStyle(
-                    color: transaction['amount'] > 0
-                        ? Colors.green
-                        : Colors.red,
+                    color: isSetoran ? Colors.green : Colors.red,
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
@@ -447,14 +511,66 @@ class _RiwayatPageState extends State<RiwayatPage>
   }
 
   Widget _buildMonthlyReport() {
+    final totalSetoranKg = transactions
+        .where((tx) => tx['type'] == 'Setoran')
+        .fold<double>(0.0, (sum, tx) => sum + (tx['data'].beratKg ?? 0.0));
+    final totalPendapatan = transactions
+        .where((tx) => tx['type'] == 'Setoran')
+        .fold<double>(0.0, (sum, tx) => sum + (tx['data'].totalHarga ?? 0.0));
+    final totalPenarikan = transactions
+        .where((tx) => tx['type'] == 'Penarikan')
+        .fold<double>(0.0, (sum, tx) => sum + (tx['data'].jumlah ?? 0.0));
+    final totalTransaksi = transactions.length;
+
+    final Map<String, double> komposisiSampah = {};
+    for (var tx in transactions.where((tx) => tx['type'] == 'Setoran')) {
+      JenisSampah? jenisSampah;
+      try {
+        final jenisSampahId = (tx['data'].jenisSampahId is int)
+            ? tx['data'].jenisSampahId
+            : int.tryParse(tx['data'].jenisSampahId?.toString() ?? '0') ?? 0;
+        print(
+          'Processing report: tx ${tx['data'].id}, jenisSampahId: $jenisSampahId',
+        );
+        jenisSampah = jenisSampahList.firstWhere(
+          (s) => s.id == jenisSampahId,
+          orElse: () =>
+              JenisSampah(id: 0, namaSampah: 'Unknown', hargaPerKg: 0),
+        );
+      } catch (e) {
+        print(
+          'Error finding JenisSampah in report: $e, jenisSampahId: ${tx['data'].jenisSampahId}',
+        );
+        jenisSampah = JenisSampah(id: 0, namaSampah: 'Unknown', hargaPerKg: 0);
+      }
+      komposisiSampah[jenisSampah.namaSampah] =
+          (komposisiSampah[jenisSampah.namaSampah] ?? 0.0) +
+          (tx['data'].beratKg ?? 0.0);
+    }
+    final totalBerat = komposisiSampah.values.fold<double>(
+      0.0,
+      (sum, v) => sum + v,
+    );
+    final komposisiPersen = komposisiSampah.map(
+      (key, value) => MapEntry(
+        key,
+        totalBerat > 0 ? (value / totalBerat * 100).toStringAsFixed(0) : '0',
+      ),
+    );
+
     return SingleChildScrollView(
       padding: EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildMonthlyStats(),
+          _buildMonthlyStats(
+            totalSetoranKg: totalSetoranKg,
+            totalPendapatan: totalPendapatan,
+            totalPenarikan: totalPenarikan,
+            totalTransaksi: totalTransaksi,
+          ),
           SizedBox(height: 20),
-          _buildWasteTypeChart(),
+          _buildWasteTypeChart(komposisiPersen),
           SizedBox(height: 20),
           _buildMonthlyTrend(),
         ],
@@ -462,7 +578,12 @@ class _RiwayatPageState extends State<RiwayatPage>
     );
   }
 
-  Widget _buildMonthlyStats() {
+  Widget _buildMonthlyStats({
+    required double totalSetoranKg,
+    required double totalPendapatan,
+    required double totalPenarikan,
+    required int totalTransaksi,
+  }) {
     return Container(
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -493,7 +614,7 @@ class _RiwayatPageState extends State<RiwayatPage>
               Expanded(
                 child: _buildReportItem(
                   'Total Setoran',
-                  '15.5 kg',
+                  '${totalSetoranKg.toStringAsFixed(1)} kg',
                   Icons.eco,
                   Colors.green,
                 ),
@@ -502,9 +623,9 @@ class _RiwayatPageState extends State<RiwayatPage>
               Expanded(
                 child: _buildReportItem(
                   'Total Pendapatan',
-                  'Rp 245.000',
+                  'Rp ${totalPendapatan.toStringAsFixed(0)}',
                   Icons.monetization_on,
-                  Colors.blue,
+                  Colors.green,
                 ),
               ),
             ],
@@ -515,18 +636,18 @@ class _RiwayatPageState extends State<RiwayatPage>
               Expanded(
                 child: _buildReportItem(
                   'Transaksi',
-                  '12 kali',
+                  '$totalTransaksi kali',
                   Icons.receipt,
-                  Colors.purple,
+                  Colors.green,
                 ),
               ),
               SizedBox(width: 16),
               Expanded(
                 child: _buildReportItem(
                   'Penarikan',
-                  'Rp 100.000',
+                  'Rp ${totalPenarikan.toStringAsFixed(0)}',
                   Icons.money,
-                  Colors.orange,
+                  Colors.green,
                 ),
               ),
             ],
@@ -566,7 +687,7 @@ class _RiwayatPageState extends State<RiwayatPage>
     );
   }
 
-  Widget _buildWasteTypeChart() {
+  Widget _buildWasteTypeChart(Map<String, String> komposisiPersen) {
     return Container(
       padding: EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -592,10 +713,16 @@ class _RiwayatPageState extends State<RiwayatPage>
             ),
           ),
           SizedBox(height: 20),
-          _buildWasteTypeItem('Plastik', '40%', Colors.green),
-          _buildWasteTypeItem('Kertas', '25%', Colors.blue),
-          _buildWasteTypeItem('Logam', '20%', Colors.grey),
-          _buildWasteTypeItem('Kaca', '15%', Colors.amber),
+          ...komposisiPersen.entries.map((entry) {
+            final attributes =
+                jenisSampahAttributes[entry.key] ??
+                {'icon': Icons.recycling, 'color': Colors.green};
+            return _buildWasteTypeItem(
+              entry.key,
+              '${entry.value}%',
+              attributes['color'],
+            );
+          }).toList(),
         ],
       ),
     );
@@ -664,7 +791,7 @@ class _RiwayatPageState extends State<RiwayatPage>
             height: 200,
             child: Center(
               child: Text(
-                'Grafik tren akan ditampilkan di sini\n(Memerlukan library chart)',
+                'Grafik tren akan ditampilkan di sini\n(Memerlukan library chart seperti fl_chart)',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey[600], fontSize: 14),
               ),
@@ -676,6 +803,28 @@ class _RiwayatPageState extends State<RiwayatPage>
   }
 
   void _showTransactionDetail(Map<String, dynamic> transaction) {
+    final isSetoran = transaction['type'] == 'Setoran';
+    final data = transaction['data'];
+    JenisSampah? jenisSampah;
+    try {
+      final jenisSampahId = (data.jenisSampahId is int)
+          ? data.jenisSampahId
+          : int.tryParse(data.jenisSampahId?.toString() ?? '0') ?? 0;
+      print('Transaction detail: id=${data.id}, jenisSampahId=$jenisSampahId');
+      jenisSampah = isSetoran
+          ? jenisSampahList.firstWhere(
+              (s) => s.id == jenisSampahId,
+              orElse: () =>
+                  JenisSampah(id: 0, namaSampah: 'Unknown', hargaPerKg: 0),
+            )
+          : null;
+    } catch (e) {
+      print(
+        'Error finding JenisSampah in detail: $e, jenisSampahId: ${data.jenisSampahId}',
+      );
+      jenisSampah = JenisSampah(id: 0, namaSampah: 'Unknown', hargaPerKg: 0);
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -684,15 +833,25 @@ class _RiwayatPageState extends State<RiwayatPage>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('ID: ${transaction['id']}'),
+            Text('ID: ${data.id}'),
             Text('Jenis: ${transaction['type']}'),
-            if (transaction['wasteType'] != '-')
-              Text('Jenis Sampah: ${transaction['wasteType']}'),
-            if (transaction['weight'] != '-')
-              Text('Berat: ${transaction['weight']}'),
-            Text('Jumlah: Rp ${transaction['amount'].abs()}'),
-            Text('Status: ${transaction['status']}'),
-            Text('Tanggal: ${transaction['date']} ${transaction['time']}'),
+            if (isSetoran) Text('Jenis Sampah: ${jenisSampah!.namaSampah}'),
+            if (isSetoran) Text('Berat: ${data.beratKg.toStringAsFixed(1)} kg'),
+            Text(
+              'Jumlah: Rp ${(isSetoran ? data.totalHarga : data.jumlah).toStringAsFixed(0)}',
+            ),
+            Text(
+              'Status: ${isSetoran ? (data.status?.toString() ?? 'Unknown') : 'Selesai'}',
+            ),
+            Text(
+              'Tanggal: ${DateFormat('yyyy-MM-dd HH:mm').format(data.createdAt)}',
+            ),
+            if (isSetoran && data.metodePenjemputan != null)
+              Text('Metode Penjemputan: ${data.metodePenjemputan}'),
+            if (isSetoran && data.alamatPenjemputan != null)
+              Text('Alamat Penjemputan: ${data.alamatPenjemputan}'),
+            if (isSetoran && data.catatanTambahan != null)
+              Text('Catatan: ${data.catatanTambahan}'),
           ],
         ),
         actions: [

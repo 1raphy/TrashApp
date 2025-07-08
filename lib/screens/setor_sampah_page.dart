@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:trasav/services/setoran_sampah_service.dart';
+import 'package:trasav/models/setoran_sampah.dart';
 import '../models/user.dart';
 
 class SetorSampahPage extends StatefulWidget {
@@ -11,72 +14,80 @@ class SetorSampahPage extends StatefulWidget {
 }
 
 class _SetorSampahPageState extends State<SetorSampahPage> {
-  String selectedJenisSampah = 'Plastik';
+  final _service = SetoranSampahService();
+  List<JenisSampah> jenisSampahList = [];
+  String selectedJenisSampahId = '';
   double beratSampah = 0.0;
   String selectedMetodePenjemputan = 'Antar Sendiri';
   String alamatPenjemputan = '';
   String catatanTambahan = '';
+  bool isLoading = false;
+  String? errorMessage;
 
-  final List<Map<String, dynamic>> jenisSampah = [
-    {
-      'name': 'Plastik',
-      'price': 3000,
-      'icon': Icons.recycling,
-      'color': Colors.green,
-    },
-    {
-      'name': 'Kertas',
-      'price': 2000,
-      'icon': Icons.description,
-      'color': Colors.blue,
-    },
-    {'name': 'Logam', 'price': 8000, 'icon': Icons.build, 'color': Colors.grey},
-    {
-      'name': 'Kaca',
-      'price': 1500,
-      'icon': Icons.wine_bar,
-      'color': Colors.amber,
-    },
-    {
-      'name': 'Elektronik',
-      'price': 5000,
-      'icon': Icons.phone_android,
-      'color': Colors.purple,
-    },
-    {
-      'name': 'Organik',
-      'price': 1000,
-      'icon': Icons.eco,
-      'color': Colors.orange,
-    },
-  ];
+  // Data statis untuk icon dan color (karena tidak ada di backend)
+  final Map<String, Map<String, dynamic>> jenisSampahAttributes = {
+    'Plastik': {'icon': Icons.recycling, 'color': Colors.green},
+    'Kertas': {'icon': Icons.description, 'color': Colors.blue},
+    'Logam': {'icon': Icons.build, 'color': Colors.grey},
+    'Kaca': {'icon': Icons.wine_bar, 'color': Colors.amber},
+    'Elektronik': {'icon': Icons.phone_android, 'color': Colors.purple},
+    'Organik': {'icon': Icons.eco, 'color': Colors.orange},
+  };
 
-  final List<String> metodePenjemputan = [
-    'Antar Sendiri',
-    'Dijemput di Rumah',
-    'Titik Kumpul Terdekat',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _fetchJenisSampah();
+  }
+
+  Future<void> _fetchJenisSampah() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+    try {
+      final jenisSampah = await _service.getJenisSampah();
+      setState(() {
+        jenisSampahList = jenisSampah;
+        if (jenisSampah.isNotEmpty) {
+          selectedJenisSampahId = jenisSampah[0].id.toString();
+        }
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        errorMessage = e.toString();
+        isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildHeaderCard(),
-          SizedBox(height: 20),
-          _buildJenisSampahSection(),
-          SizedBox(height: 20),
-          _buildBeratSampahSection(),
-          SizedBox(height: 20),
-          _buildMetodePenjemputanSection(),
-          SizedBox(height: 20),
-          _buildRingkasanSection(),
-          SizedBox(height: 20),
-          _buildSubmitButton(),
-        ],
-      ),
+    return Scaffold(
+      body: isLoading
+          ? Center(child: CircularProgressIndicator())
+          : errorMessage != null
+          ? Center(child: Text('Error: $errorMessage'))
+          : SingleChildScrollView(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeaderCard(),
+                  SizedBox(height: 20),
+                  _buildJenisSampahSection(),
+                  SizedBox(height: 20),
+                  _buildBeratSampahSection(),
+                  SizedBox(height: 20),
+                  _buildMetodePenjemputanSection(),
+                  SizedBox(height: 20),
+                  _buildRingkasanSection(),
+                  SizedBox(height: 20),
+                  _buildSubmitButton(),
+                ],
+              ),
+            ),
     );
   }
 
@@ -154,27 +165,34 @@ class _SetorSampahPageState extends State<SetorSampahPage> {
             ],
           ),
           child: Column(
-            children: jenisSampah.map((sampah) {
+            children: jenisSampahList.map((sampah) {
+              final attributes =
+                  jenisSampahAttributes[sampah.namaSampah] ??
+                  {'icon': Icons.recycling, 'color': Colors.green};
               return ListTile(
                 leading: Container(
                   padding: EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: sampah['color'].withOpacity(0.1),
+                    color: attributes['color'].withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(sampah['icon'], color: sampah['color'], size: 20),
+                  child: Icon(
+                    attributes['icon'],
+                    color: attributes['color'],
+                    size: 20,
+                  ),
                 ),
                 title: Text(
-                  sampah['name'],
+                  sampah.namaSampah,
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
-                subtitle: Text('Rp ${sampah['price']}/kg'),
+                subtitle: Text('Rp ${sampah.hargaPerKg}/kg'),
                 trailing: Radio<String>(
-                  value: sampah['name'],
-                  groupValue: selectedJenisSampah,
+                  value: sampah.id.toString(),
+                  groupValue: selectedJenisSampahId,
                   onChanged: (String? value) {
                     setState(() {
-                      selectedJenisSampah = value!;
+                      selectedJenisSampahId = value!;
                     });
                   },
                   activeColor: Colors.green[600],
@@ -260,6 +278,7 @@ class _SetorSampahPageState extends State<SetorSampahPage> {
   }
 
   Widget _buildMetodePenjemputanSection() {
+    final metodePenjemputan = ['Antar Sendiri', 'Dijemput di Rumah'];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -351,6 +370,11 @@ class _SetorSampahPageState extends State<SetorSampahPage> {
   }
 
   Widget _buildRingkasanSection() {
+    final selectedSampah = jenisSampahList.firstWhere(
+      (s) => s.id.toString() == selectedJenisSampahId,
+      orElse: () => JenisSampah(id: 0, namaSampah: '', hargaPerKg: 0),
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -380,7 +404,7 @@ class _SetorSampahPageState extends State<SetorSampahPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildRingkasanItem('Jenis Sampah', selectedJenisSampah),
+              _buildRingkasanItem('Jenis Sampah', selectedSampah.namaSampah),
               _buildRingkasanItem(
                 'Berat',
                 '${beratSampah.toStringAsFixed(1)} kg',
@@ -390,8 +414,6 @@ class _SetorSampahPageState extends State<SetorSampahPage> {
                 'Estimasi Saldo',
                 'Rp ${_calculateEstimatedPrice()}',
               ),
-              if (selectedMetodePenjemputan == 'Dijemput di Rumah')
-                _buildRingkasanItem('Biaya Penjemputan', '- Rp 5.000'),
               Divider(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -405,7 +427,7 @@ class _SetorSampahPageState extends State<SetorSampahPage> {
                     ),
                   ),
                   Text(
-                    'Rp ${_calculateFinalPrice()}',
+                    'Rp ${_calculateEstimatedPrice()}',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -472,59 +494,48 @@ class _SetorSampahPageState extends State<SetorSampahPage> {
   }
 
   String _calculateEstimatedPrice() {
-    var sampah = jenisSampah.firstWhere(
-      (s) => s['name'] == selectedJenisSampah,
+    final sampah = jenisSampahList.firstWhere(
+      (s) => s.id.toString() == selectedJenisSampahId,
+      orElse: () => JenisSampah(id: 0, namaSampah: '', hargaPerKg: 0),
     );
-    int price = (beratSampah * sampah['price']).round();
+    int price = (beratSampah * sampah.hargaPerKg).round();
     return price.toString();
   }
 
-  String _calculateFinalPrice() {
-    var sampah = jenisSampah.firstWhere(
-      (s) => s['name'] == selectedJenisSampah,
-    );
-    int price = (beratSampah * sampah['price']).round();
-
-    if (selectedMetodePenjemputan == 'Dijemput di Rumah') {
-      price -= 5000;
+  Future<void> _submitSetoran() async {
+    setState(() {
+      isLoading = true;
+    });
+    try {
+      final setoran = await _service.createSetoranSampah(
+        jenisSampahId: int.parse(selectedJenisSampahId),
+        beratKg: beratSampah,
+        metodePenjemputan: selectedMetodePenjemputan,
+        alamatPenjemputan: selectedMetodePenjemputan == 'Dijemput di Rumah'
+            ? alamatPenjemputan
+            : null,
+        catatanTambahan: catatanTambahan.isNotEmpty ? catatanTambahan : null,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Setoran berhasil: Rp ${setoran.totalHarga}')),
+      );
+      setState(() {
+        beratSampah = 0.0;
+        selectedJenisSampahId = jenisSampahList.isNotEmpty
+            ? jenisSampahList[0].id.toString()
+            : '';
+        selectedMetodePenjemputan = 'Antar Sendiri';
+        alamatPenjemputan = '';
+        catatanTambahan = '';
+        isLoading = false;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal menyimpan setoran: $e')));
+      setState(() {
+        isLoading = false;
+      });
     }
-
-    return price.toString();
-  }
-
-  void _submitSetoran() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.green[600]),
-              SizedBox(width: 8),
-              Text('Setoran Berhasil'),
-            ],
-          ),
-          content: Text(
-            'Setoran sampah Anda telah berhasil dicatat. Saldo akan ditambahkan setelah verifikasi.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                // Reset form
-                setState(() {
-                  beratSampah = 0.0;
-                  selectedJenisSampah = 'Plastik';
-                  selectedMetodePenjemputan = 'Antar Sendiri';
-                  alamatPenjemputan = '';
-                  catatanTambahan = '';
-                });
-              },
-              child: Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
   }
 }
