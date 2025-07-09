@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:trasav/models/user.dart';
 import 'package:trasav/screens/operator/operator_home_screen.dart';
-import 'package:trasav/screens/operator_home_screen.dart';
 import 'package:trasav/services/api_service.dart';
 import 'register_screen.dart';
 import 'customer_home_screen.dart';

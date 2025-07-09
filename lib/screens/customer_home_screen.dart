@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:trasav/screens/notification_nasabah_page.dart';
 import '../models/user.dart';
 import 'home_page.dart';
 import 'setor_sampah_page.dart';
@@ -95,6 +96,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
       floatingActionButton: _selectedIndex == 0
           ? _buildFloatingActionButton()
           : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
@@ -121,7 +123,15 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen>
       actions: [
         IconButton(
           icon: Icon(Icons.notifications_none, color: Colors.white),
-          onPressed: () {},
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    NotificationNasabahPage(user: widget.user),
+              ),
+            );
+          },
         ),
         CircleAvatar(
           radius: 18,

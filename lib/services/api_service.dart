@@ -157,6 +157,48 @@ class ApiService {
     }
   }
 
+  Future<User> getUser(int userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token') ?? '';
+      print('Fetching user data for userId: $userId');
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/users/$userId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      print('Get User Response Status: ${response.statusCode}');
+      print('Get User Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final jsonData = jsonDecode(response.body);
+        return User.fromJson(jsonData);
+      } else {
+        throw Exception('Failed to load user data: ${response.body}');
+      }
+    } catch (e) {
+      print('Error fetching user: $e');
+      rethrow;
+    }
+  }
+
+  Future<User> refreshUserBalance(int userId) async {
+    try {
+      final user = await getUser(userId);
+      print(
+        'User balance refreshed: id=${user.id}, depositBalance=${user.depositBalance}',
+      );
+      return user;
+    } catch (e) {
+      print('Error refreshing user balance: $e');
+      rethrow;
+    }
+  }
+
   /// Mendapatkan daftar jenis sampah
   static Future<List<dynamic>> getJenisSampah() async {
     try {

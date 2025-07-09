@@ -4,7 +4,7 @@ class User {
   final String email;
   final String? phone;
   final String role;
-  final double depositBalance;
+  double depositBalance;
   final DateTime? emailVerifiedAt;
 
   User({

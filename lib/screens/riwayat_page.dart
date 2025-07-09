@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:trasav/services/setoran_sampah_service.dart';
-// import 'package:trasav/models/setoran_sampah.dart';
+import 'package:trasav/models/setoran_sampah.dart';
+import 'package:trasav/models/penarikan_saldo.dart';
 import 'package:trasav/models/jenis_sampah.dart';
-import '../models/user.dart';
+import 'package:trasav/models/user.dart';
+import 'package:trasav/services/setoran_sampah_service.dart';
+import 'package:trasav/services/penarikan_saldo_service.dart';
 
 class RiwayatPage extends StatefulWidget {
   final User user;
@@ -17,14 +19,21 @@ class RiwayatPage extends StatefulWidget {
 class _RiwayatPageState extends State<RiwayatPage>
     with TickerProviderStateMixin {
   late TabController _tabController;
-  final _service = SetoranSampahService();
+  final _setoranService = SetoranSampahService();
+  final _penarikanService = PenarikanSaldoService();
   String selectedFilter = 'Semua';
-  List<dynamic> transactions = [];
+  List<Map<String, dynamic>> transactions = [];
   List<JenisSampah> jenisSampahList = [];
   bool isLoading = false;
   String? errorMessage;
 
-  final List<String> filters = ['Semua', 'Pending', 'Disetujui', 'Ditolak'];
+  final List<String> filters = [
+    'Semua',
+    'Pending',
+    'Disetujui',
+    'Ditolak',
+    'Selesai',
+  ];
 
   final Map<String, Map<String, dynamic>> jenisSampahAttributes = {
     'Plastik': {'icon': Icons.recycling, 'color': Colors.green},
@@ -54,17 +63,32 @@ class _RiwayatPageState extends State<RiwayatPage>
       errorMessage = null;
     });
     try {
-      final setoran = await _service.getSetoranSampah();
-      final penarikan = await _service.getPenarikanSaldo(); // Hapus userId
-      final jenisSampah = await _service.getJenisSampah();
+      final setoran = await _setoranService.getSetoranSampah(
+        userId: widget.user.id,
+      );
+      final penarikan = await _penarikanService.getPenarikanSaldo(
+        userId: widget.user.id,
+      );
+      final jenisSampah = await _setoranService.getJenisSampah();
       setState(() {
         jenisSampahList = jenisSampah;
-        transactions = [
-          ...setoran.map((s) => {'type': 'Setoran', 'data': s}),
-          ...penarikan.map((p) => {'type': 'Penarikan', 'data': p}),
-        ]..sort((a, b) => b['data'].createdAt.compareTo(a['data'].createdAt));
+        transactions =
+            [
+              ...setoran.map((s) => {'type': 'Setoran', 'data': s}),
+              ...penarikan.map((p) => {'type': 'Penarikan', 'data': p}),
+            ]..sort((a, b) {
+              final aDate = a['data'].createdAt is String
+                  ? DateTime.parse(a['data'].createdAt as String)
+                  : a['data'].createdAt as DateTime;
+              final bDate = b['data'].createdAt is String
+                  ? DateTime.parse(b['data'].createdAt as String)
+                  : b['data'].createdAt as DateTime;
+              return bDate.compareTo(aDate);
+            });
         isLoading = false;
       });
+      print('Transactions fetched: ${transactions.length}');
+      print('Jenis Sampah fetched: ${jenisSampahList.length}');
     } catch (e) {
       setState(() {
         errorMessage = 'Gagal memuat data: $e';
@@ -74,17 +98,17 @@ class _RiwayatPageState extends State<RiwayatPage>
     }
   }
 
-  List<dynamic> get filteredTransactions {
+  List<Map<String, dynamic>> get filteredTransactions {
     if (selectedFilter == 'Semua') {
       return transactions;
     }
     return transactions.where((tx) {
       if (tx['type'] == 'Penarikan') {
-        return false;
+        return selectedFilter == 'Selesai';
       }
       final status = tx['data'].status?.toString().toLowerCase() ?? '';
       print(
-        'Filtering tx: ${tx['data'].id}, status: $status, filter: $selectedFilter',
+        'Filtering tx: ${tx['data'].id}, type: ${tx['type']}, status: $status, filter: $selectedFilter',
       );
       return status == selectedFilter.toLowerCase();
     }).toList();
@@ -93,6 +117,7 @@ class _RiwayatPageState extends State<RiwayatPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       body: isLoading
           ? Center(child: CircularProgressIndicator())
           : errorMessage != null
@@ -207,6 +232,9 @@ class _RiwayatPageState extends State<RiwayatPage>
                   'disetujui',
         )
         .length;
+    int withdrawalCount = transactions
+        .where((tx) => tx['type'] == 'Penarikan')
+        .length;
     double totalIncome = transactions
         .where((tx) => tx['type'] == 'Setoran')
         .fold(0.0, (sum, tx) => sum + (tx['data'].totalHarga ?? 0.0));
@@ -244,10 +272,10 @@ class _RiwayatPageState extends State<RiwayatPage>
           SizedBox(width: 8),
           Expanded(
             child: _buildStatCard(
-              'Rp ${(totalIncome / 1000).toStringAsFixed(0)}K',
-              'Total Pendapatan',
+              withdrawalCount.toString(),
+              'Penarikan',
               Icons.monetization_on,
-              Colors.green,
+              Colors.blue,
             ),
           ),
         ],
@@ -360,27 +388,30 @@ class _RiwayatPageState extends State<RiwayatPage>
   Widget _buildTransactionCard(Map<String, dynamic> transaction) {
     final isSetoran = transaction['type'] == 'Setoran';
     final data = transaction['data'];
-    print(
-      'Processing transaction: id=${data.id}, type=${transaction['type']}, jenisSampahId=${data.jenisSampahId}',
-    );
+    print('Processing transaction: id=${data.id}, type=${transaction['type']}');
 
     JenisSampah? jenisSampah;
-    try {
-      final jenisSampahId = (data.jenisSampahId is int)
-          ? data.jenisSampahId
-          : int.tryParse(data.jenisSampahId?.toString() ?? '0') ?? 0;
-      jenisSampah = isSetoran
-          ? jenisSampahList.firstWhere(
-              (s) => s.id == jenisSampahId,
-              orElse: () =>
-                  JenisSampah(id: 0, namaSampah: 'Unknown', hargaPerKg: 0),
-            )
-          : null;
-    } catch (e) {
-      print(
-        'Error finding JenisSampah: $e, jenisSampahId: ${data.jenisSampahId}',
-      );
-      jenisSampah = JenisSampah(id: 0, namaSampah: 'Unknown', hargaPerKg: 0);
+    if (isSetoran) {
+      try {
+        final jenisSampahId = (data.jenisSampahId is int)
+            ? data.jenisSampahId
+            : int.tryParse(data.jenisSampahId?.toString() ?? '0') ?? 0;
+        print(
+          'Processing setoran: id=${data.id}, jenisSampahId=$jenisSampahId',
+        );
+        jenisSampah = jenisSampahList.firstWhere(
+          (s) => s.id == jenisSampahId,
+          orElse: () =>
+              JenisSampah(id: 0, namaSampah: 'Unknown', hargaPerKg: 0),
+        );
+      } catch (e) {
+        print(
+          'Error finding JenisSampah: $e, jenisSampahId: ${data.jenisSampahId}',
+        );
+        jenisSampah = JenisSampah(id: 0, namaSampah: 'Unknown', hargaPerKg: 0);
+      }
+    } else {
+      jenisSampah = null;
     }
 
     Color statusColor;
@@ -428,8 +459,8 @@ class _RiwayatPageState extends State<RiwayatPage>
           decoration: BoxDecoration(
             color:
                 (isSetoran
-                        ? (jenisSampahAttributes[jenisSampah!
-                                  .namaSampah]?['color'] ??
+                        ? (jenisSampahAttributes[jenisSampah?.namaSampah ??
+                                  'Unknown']?['color'] ??
                               Colors.green)
                         : Colors.blue)
                     .withOpacity(0.1),
@@ -437,11 +468,13 @@ class _RiwayatPageState extends State<RiwayatPage>
           ),
           child: Icon(
             isSetoran
-                ? (jenisSampahAttributes[jenisSampah!.namaSampah]?['icon'] ??
+                ? (jenisSampahAttributes[jenisSampah?.namaSampah ??
+                          'Unknown']?['icon'] ??
                       Icons.recycling)
                 : Icons.monetization_on,
             color: isSetoran
-                ? (jenisSampahAttributes[jenisSampah!.namaSampah]?['color'] ??
+                ? (jenisSampahAttributes[jenisSampah?.namaSampah ??
+                          'Unknown']?['color'] ??
                       Colors.green)
                 : Colors.blue,
             size: 24,
@@ -477,7 +510,12 @@ class _RiwayatPageState extends State<RiwayatPage>
             SizedBox(height: 8),
             if (isSetoran)
               Text(
-                '${jenisSampah!.namaSampah} - ${data.beratKg.toStringAsFixed(1)} kg',
+                '${jenisSampah?.namaSampah ?? 'Unknown'} - ${data.beratKg.toStringAsFixed(1)} kg',
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+            if (!isSetoran)
+              Text(
+                'Penarikan saldo ke rekening',
                 style: TextStyle(color: Colors.grey[600]),
               ),
             SizedBox(height: 4),
@@ -485,7 +523,11 @@ class _RiwayatPageState extends State<RiwayatPage>
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  DateFormat('yyyy-MM-dd HH:mm').format(data.createdAt),
+                  DateFormat('yyyy-MM-dd HH:mm').format(
+                    data.createdAt is String
+                        ? DateTime.parse(data.createdAt as String)
+                        : data.createdAt as DateTime,
+                  ),
                   style: TextStyle(color: Colors.grey[500], fontSize: 12),
                 ),
                 Text(
@@ -524,27 +566,33 @@ class _RiwayatPageState extends State<RiwayatPage>
     final Map<String, double> komposisiSampah = {};
     for (var tx in transactions.where((tx) => tx['type'] == 'Setoran')) {
       JenisSampah? jenisSampah;
-      try {
-        final jenisSampahId = (tx['data'].jenisSampahId is int)
-            ? tx['data'].jenisSampahId
-            : int.tryParse(tx['data'].jenisSampahId?.toString() ?? '0') ?? 0;
-        print(
-          'Processing report: tx ${tx['data'].id}, jenisSampahId: $jenisSampahId',
-        );
-        jenisSampah = jenisSampahList.firstWhere(
-          (s) => s.id == jenisSampahId,
-          orElse: () =>
-              JenisSampah(id: 0, namaSampah: 'Unknown', hargaPerKg: 0),
-        );
-      } catch (e) {
-        print(
-          'Error finding JenisSampah in report: $e, jenisSampahId: ${tx['data'].jenisSampahId}',
-        );
-        jenisSampah = JenisSampah(id: 0, namaSampah: 'Unknown', hargaPerKg: 0);
+      if (tx['type'] == 'Setoran') {
+        try {
+          final jenisSampahId = (tx['data'].jenisSampahId is int)
+              ? tx['data'].jenisSampahId
+              : int.tryParse(tx['data'].jenisSampahId?.toString() ?? '0') ?? 0;
+          print(
+            'Processing report: tx ${tx['data'].id}, jenisSampahId: $jenisSampahId',
+          );
+          jenisSampah = jenisSampahList.firstWhere(
+            (s) => s.id == jenisSampahId,
+            orElse: () =>
+                JenisSampah(id: 0, namaSampah: 'Unknown', hargaPerKg: 0),
+          );
+        } catch (e) {
+          print(
+            'Error finding JenisSampah in report: $e, jenisSampahId: ${tx['data'].jenisSampahId}',
+          );
+          jenisSampah = JenisSampah(
+            id: 0,
+            namaSampah: 'Unknown',
+            hargaPerKg: 0,
+          );
+        }
+        komposisiSampah[jenisSampah.namaSampah] =
+            (komposisiSampah[jenisSampah.namaSampah] ?? 0.0) +
+            (tx['data'].beratKg ?? 0.0);
       }
-      komposisiSampah[jenisSampah.namaSampah] =
-          (komposisiSampah[jenisSampah.namaSampah] ?? 0.0) +
-          (tx['data'].beratKg ?? 0.0);
     }
     final totalBerat = komposisiSampah.values.fold<double>(
       0.0,
@@ -805,23 +853,27 @@ class _RiwayatPageState extends State<RiwayatPage>
     final isSetoran = transaction['type'] == 'Setoran';
     final data = transaction['data'];
     JenisSampah? jenisSampah;
-    try {
-      final jenisSampahId = (data.jenisSampahId is int)
-          ? data.jenisSampahId
-          : int.tryParse(data.jenisSampahId?.toString() ?? '0') ?? 0;
-      print('Transaction detail: id=${data.id}, jenisSampahId=$jenisSampahId');
-      jenisSampah = isSetoran
-          ? jenisSampahList.firstWhere(
-              (s) => s.id == jenisSampahId,
-              orElse: () =>
-                  JenisSampah(id: 0, namaSampah: 'Unknown', hargaPerKg: 0),
-            )
-          : null;
-    } catch (e) {
-      print(
-        'Error finding JenisSampah in detail: $e, jenisSampahId: ${data.jenisSampahId}',
-      );
-      jenisSampah = JenisSampah(id: 0, namaSampah: 'Unknown', hargaPerKg: 0);
+    if (isSetoran) {
+      try {
+        final jenisSampahId = (data.jenisSampahId is int)
+            ? data.jenisSampahId
+            : int.tryParse(data.jenisSampahId?.toString() ?? '0') ?? 0;
+        print(
+          'Transaction detail: id=${data.id}, jenisSampahId=$jenisSampahId',
+        );
+        jenisSampah = jenisSampahList.firstWhere(
+          (s) => s.id == jenisSampahId,
+          orElse: () =>
+              JenisSampah(id: 0, namaSampah: 'Unknown', hargaPerKg: 0),
+        );
+      } catch (e) {
+        print(
+          'Error finding JenisSampah in detail: $e, jenisSampahId: ${data.jenisSampahId}',
+        );
+        jenisSampah = JenisSampah(id: 0, namaSampah: 'Unknown', hargaPerKg: 0);
+      }
+    } else {
+      jenisSampah = null;
     }
 
     showDialog(
@@ -834,7 +886,8 @@ class _RiwayatPageState extends State<RiwayatPage>
           children: [
             Text('ID: ${data.id}'),
             Text('Jenis: ${transaction['type']}'),
-            if (isSetoran) Text('Jenis Sampah: ${jenisSampah!.namaSampah}'),
+            if (isSetoran)
+              Text('Jenis Sampah: ${jenisSampah?.namaSampah ?? 'Unknown'}'),
             if (isSetoran) Text('Berat: ${data.beratKg.toStringAsFixed(1)} kg'),
             Text(
               'Jumlah: Rp ${(isSetoran ? data.totalHarga : data.jumlah).toStringAsFixed(0)}',
@@ -843,7 +896,7 @@ class _RiwayatPageState extends State<RiwayatPage>
               'Status: ${isSetoran ? (data.status?.toString() ?? 'Unknown') : 'Selesai'}',
             ),
             Text(
-              'Tanggal: ${DateFormat('yyyy-MM-dd HH:mm').format(data.createdAt)}',
+              'Tanggal: ${DateFormat('yyyy-MM-dd HH:mm').format(data.createdAt is String ? DateTime.parse(data.createdAt as String) : data.createdAt as DateTime)}',
             ),
             if (isSetoran && data.metodePenjemputan != null)
               Text('Metode Penjemputan: ${data.metodePenjemputan}'),

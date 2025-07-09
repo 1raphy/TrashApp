@@ -63,7 +63,7 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
                 Expanded(child: _buildSetoranList()),
               ],
             ),
-      floatingActionButton: _buildFloatingActionButton(),
+      // floatingActionButton: _buildFloatingActionButton(),
     );
   }
 
@@ -562,31 +562,31 @@ class _RiwayatSetoranPageState extends State<RiwayatSetoranPage> {
     }
   }
 
-  Widget _buildFloatingActionButton() {
-    if (widget.user.role != 'operator') return SizedBox.shrink();
-    return FloatingActionButton.extended(
-      onPressed: _showAddSetoranDialog,
-      backgroundColor: Colors.green[600],
-      label: Text('Tambah Setoran', style: TextStyle(color: Colors.white)),
-      icon: Icon(Icons.add, color: Colors.white),
-    );
-  }
+  // Widget _buildFloatingActionButton() {
+  //   if (widget.user.role != 'operator') return SizedBox.shrink();
+  //   return FloatingActionButton.extended(
+  //     onPressed: _showAddSetoranDialog,
+  //     backgroundColor: Colors.green[600],
+  //     label: Text('Tambah Setoran', style: TextStyle(color: Colors.white)),
+  //     icon: Icon(Icons.add, color: Colors.white),
+  //   );
+  // }
 
-  void _showAddSetoranDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Tambah Setoran Manual'),
-        content: Text(
-          'Fitur untuk menambah setoran manual akan diimplementasikan di sini.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
+  // void _showAddSetoranDialog() {
+  //   showDialog(
+  //     context: context,
+  //     builder: (context) => AlertDialog(
+  //       title: Text('Tambah Setoran Manual'),
+  //       content: Text(
+  //         'Fitur untuk menambah setoran manual akan diimplementasikan di sini.',
+  //       ),
+  //       actions: [
+  //         TextButton(
+  //           onPressed: () => Navigator.pop(context),
+  //           child: Text('OK'),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 }

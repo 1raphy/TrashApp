@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:trasav/models/setoran_sampah.dart';
 import 'package:trasav/models/jenis_sampah.dart';
+import 'package:trasav/models/penarikan_saldo.dart';
 
 class SetoranSampahService {
   static const String _baseUrl = 'http://10.0.2.2:8000/api';
@@ -30,7 +31,8 @@ class SetoranSampahService {
       headers: headers,
     );
 
-    print('JenisSampah Response: ${response.body}');
+    print('JenisSampah Response Status: ${response.statusCode}');
+    print('JenisSampah Response Body: ${response.body}');
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -43,20 +45,22 @@ class SetoranSampahService {
     }
   }
 
-  Future<List<SetoranSampah>> getSetoranSampah() async {
+  Future<List<SetoranSampah>> getSetoranSampah({int? userId}) async {
     final headers = await _getHeaders();
-    final response = await http.get(
-      Uri.parse('$_baseUrl/setoran-sampah'),
-      headers: headers,
-    );
+    final uri = userId != null
+        ? Uri.parse('$_baseUrl/setoran-sampah?user_id=$userId')
+        : Uri.parse('$_baseUrl/setoran-sampah');
+    final response = await http.get(uri, headers: headers);
 
-    print('SetoranSampah Response: ${response.body}');
+    print('SetoranSampah Response Status: ${response.statusCode}');
+    print('SetoranSampah Response Body: ${response.body}');
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       final List<dynamic> items = (data is List)
           ? data
           : (data['data'] as List? ?? []);
+      print('Parsed SetoranSampah Items: $items');
       return items.map((item) => SetoranSampah.fromJson(item)).toList();
     } else {
       throw Exception('Gagal memuat setoran sampah: ${response.body}');

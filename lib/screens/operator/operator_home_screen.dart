@@ -6,6 +6,7 @@ import 'jenis_sampah_page.dart';
 import 'riwayat_setoran_page.dart';
 import 'riwayat_penarikan_page.dart';
 import 'data_nasabah_page.dart';
+import 'operator_notification_page.dart';
 
 class OperatorScreen extends StatefulWidget {
   final User user;
@@ -23,8 +24,8 @@ class _OperatorScreenState extends State<OperatorScreen>
   late Animation<double> _fadeAnimation;
   int _selectedIndex = 0;
   late List<Widget> _pages;
-  String? _token; // Variabel untuk menyimpan token
-  bool _isLoadingToken = true; // Status untuk menangani loading token
+  String? _token;
+  bool _isLoadingToken = true;
 
   @override
   void initState() {
@@ -38,7 +39,6 @@ class _OperatorScreenState extends State<OperatorScreen>
     );
     _animationController.forward();
 
-    // Ambil token dan inisialisasi pages secara asinkronus
     _loadTokenAndInitializePages();
   }
 
@@ -50,10 +50,7 @@ class _OperatorScreenState extends State<OperatorScreen>
         _isLoadingToken = false;
         _pages = [
           OperatorDashboardPage(user: widget.user),
-          JenisSampahPage(
-            user: widget.user,
-            token: _token ?? '', // Gunakan token kosong jika null
-          ),
+          JenisSampahPage(user: widget.user, token: _token ?? ''),
           RiwayatSetoranPage(user: widget.user),
           RiwayatPenarikanPage(user: widget.user),
           DataNasabahPage(user: widget.user),
@@ -70,9 +67,12 @@ class _OperatorScreenState extends State<OperatorScreen>
           DataNasabahPage(user: widget.user),
         ];
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Gagal memuat token: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal memuat token: $e'),
+          behavior: SnackBarBehavior.fixed,
+        ),
+      );
     }
   }
 
@@ -82,7 +82,6 @@ class _OperatorScreenState extends State<OperatorScreen>
     super.dispose();
   }
 
-  // Fungsi logout
   void _logout() {
     showDialog(
       context: context,
@@ -100,7 +99,6 @@ class _OperatorScreenState extends State<OperatorScreen>
             TextButton(
               child: Text('Keluar'),
               onPressed: () async {
-                // Hapus token dari SharedPreferences saat logout
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.remove('auth_token');
                 Navigator.of(context).pop();
@@ -132,12 +130,13 @@ class _OperatorScreenState extends State<OperatorScreen>
       floatingActionButton: _selectedIndex == 0
           ? _buildFloatingActionButton()
           : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
   AppBar _buildAppBar() {
     List<String> titles = [
-      'Dashboard Operator',
+      'Dashboard',
       'Jenis Sampah',
       'Riwayat Setoran',
       'Riwayat Penarikan',
@@ -164,7 +163,15 @@ class _OperatorScreenState extends State<OperatorScreen>
       actions: [
         IconButton(
           icon: Icon(Icons.notifications_none, color: Colors.white),
-          onPressed: () {},
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    OperatorNotificationPage(user: widget.user),
+              ),
+            );
+          },
         ),
         CircleAvatar(
           radius: 18,
